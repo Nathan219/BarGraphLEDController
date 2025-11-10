@@ -6,18 +6,18 @@
 // =====================
 #define LED_TYPE        WS2812B
 #define COLOR_ORDER     GRB
-#define BRIGHTNESS      128
+#define BRIGHTNESS      100
 
 #define NUM_LEDS_PAIR   288
 #define NUM_LEDS_SINGLE 144
 
-#define PIN_F11_12   1
-#define PIN_F15_16   2
-#define PIN_F17_POOL 3
-#define PIN_TEA      4
+#define PIN_F11_12   2
+#define PIN_F15_16   3
+#define PIN_F17_POOL 4
+#define PIN_TEA      5
 
-#define UART_RX 44
-#define UART_TX 43
+#define UART_RX 7
+#define UART_TX 8
 
 // =====================
 // --- ARRAYS ---
@@ -49,12 +49,13 @@ const int LEDS_PER_PIXEL =
 float currentLeds[7];
 int   targetLeds[7];
 bool  rainbow[7];
-bool  easterEgg = false;
+float rainbowWavePos[7];  // LED position of transition wave (0 to totalLitPixels)
+bool  easterEgg = true;
 uint8_t hueOffset = 0;
 
 // label mapping
 enum Floors {F11, F12, F15, F16, F17, POOL, TEA};
-const char* labels[7] = {"FLOOR11","FLOOR12","FLOOR15","FLOOR16","FLOOR17","POOL","TEA_ROOM"};
+const char* labels[7] = {"FLOOR11","FLOOR12","FLOOR15","FLOOR16","FLOOR17","POOL","TEAROOM"};
 
 CRGB titleColor[7] = {CRGB::Purple,CRGB::Cyan,CRGB::Orange,CRGB::Green,CRGB::Blue,CRGB::HotPink,CRGB::Yellow};
 CRGB pixelColor[7] = {CRGB::Purple,CRGB::Cyan,CRGB::Orange,CRGB::Green,CRGB::Blue,CRGB::HotPink,CRGB::Yellow};
@@ -71,7 +72,7 @@ float animSpeed = 1.0f;  // LEDs per frame
 // =====================
 void setup() {
   Serial.begin(115200);
-  extSerial.begin(115200, SERIAL_8N1, UART_RX, UART_TX);
+  extSerial.begin(38400, SERIAL_8N1, UART_RX, UART_TX);
   prefs.begin("floors", false);
 
   FastLED.addLeds<LED_TYPE, PIN_F11_12, COLOR_ORDER>(leds_f11_12, NUM_LEDS_PAIR);
@@ -89,6 +90,8 @@ void setup() {
     targetLeds[i]=saved*LEDS_PER_PIXEL;
     currentLeds[i]=targetLeds[i];
     rainbow[i]=rb;
+    // Initialize wave position: if rainbow, wave is at the end; if not, wave is at start
+    rainbowWavePos[i] = rb ? (float)currentLeds[i] : 0.0f;
   }
 
   Serial.println("✅ Ready with per-LED smooth animation.");
@@ -101,18 +104,39 @@ void loop() {
   if (Serial.available()) handleInput(Serial.readStringUntil('\n'));
   if (extSerial.available()) handleInput(extSerial.readStringUntil('\n'));
 
-  for (int i=0;i<7;i++) animateProgress(currentLeds[i], targetLeds[i], animSpeed);
+  for (int i=0;i<7;i++) {
+    animateProgress(currentLeds[i], targetLeds[i], animSpeed);
+    
+    // Animate rainbow wave position
+    float totalLit = currentLeds[i];
+    // Both transitions wipe in the same direction (LED 1 to 6)
+    // Turning ON: wave goes 0 → totalLit (LEDs before wave are rainbow)
+    // Turning OFF: wave goes 0 → totalLit (LEDs before wave are NOT rainbow, LEDs after wave are rainbow)
+    float targetWavePos = totalLit;  // Both go to totalLit
+    
+    // Wave always moves forward (0 to totalLit)
+    if (rainbowWavePos[i] < targetWavePos) {
+      rainbowWavePos[i] = fminf(targetWavePos, rainbowWavePos[i] + animSpeed);
+    }
+    // Clamp to current lit area
+    if (rainbowWavePos[i] > totalLit) {
+      rainbowWavePos[i] = totalLit;
+    }
+    if (rainbowWavePos[i] < 0.0f) {
+      rainbowWavePos[i] = 0.0f;
+    }
+  }
 
-  drawFloor(leds_f11_12, HALF_A_START, HALF_A_END, currentLeds[F11], titleColor[F11], pixelColor[F11], rainbow[F11], false);
-  drawFloor(leds_f11_12, HALF_B_START, HALF_B_END, currentLeds[F12], titleColor[F12], pixelColor[F12], rainbow[F12], true);
+  drawFloor(leds_f11_12, HALF_A_START, HALF_A_END, currentLeds[F11], titleColor[F11], pixelColor[F11], rainbowWavePos[F11], rainbow[F11], false);
+  drawFloor(leds_f11_12, HALF_B_START, HALF_B_END, currentLeds[F12], titleColor[F12], pixelColor[F12], rainbowWavePos[F12], rainbow[F12], true);
 
-  drawFloor(leds_f15_16, HALF_A_START, HALF_A_END, currentLeds[F15], titleColor[F15], pixelColor[F15], rainbow[F15], false);
-  drawFloor(leds_f15_16, HALF_B_START, HALF_B_END, currentLeds[F16], titleColor[F16], pixelColor[F16], rainbow[F16], true);
+  drawFloor(leds_f15_16, HALF_A_START, HALF_A_END, currentLeds[F15], titleColor[F15], pixelColor[F15], rainbowWavePos[F15], rainbow[F15], false);
+  drawFloor(leds_f15_16, HALF_B_START, HALF_B_END, currentLeds[F16], titleColor[F16], pixelColor[F16], rainbowWavePos[F16], rainbow[F16], true);
 
-  drawFloor(leds_f17_pool, HALF_A_START, HALF_A_END, currentLeds[F17], titleColor[F17], pixelColor[F17], rainbow[F17], false);
-  drawFloor(leds_f17_pool, HALF_B_START, HALF_B_END, currentLeds[POOL], titleColor[POOL], pixelColor[POOL], rainbow[POOL], true);
+  drawFloor(leds_f17_pool, HALF_A_START, HALF_A_END, currentLeds[F17], titleColor[F17], pixelColor[F17], rainbowWavePos[F17], rainbow[F17], false);
+  drawFloor(leds_f17_pool, HALF_B_START, HALF_B_END, currentLeds[POOL], titleColor[POOL], pixelColor[POOL], rainbowWavePos[POOL], rainbow[POOL], true);
 
-  drawStrip(leds_tea, currentLeds[TEA], titleColor[TEA], pixelColor[TEA], rainbow[TEA]);
+  drawStrip(leds_tea, currentLeds[TEA], titleColor[TEA], pixelColor[TEA], rainbowWavePos[TEA], rainbow[TEA]);
 
   FastLED.show();
   hueOffset+=2;
@@ -142,20 +166,46 @@ void handleInput(String msg){
   msg.trim();
   if(msg.isEmpty()) return;
 
+  Serial.println(msg);
   int sp=msg.indexOf(' ');
   if(sp==-1) sp=msg.length();
   String label=msg.substring(0,sp);
   String rest=(sp<(int)msg.length())?msg.substring(sp+1):"";
   rest.trim();
-  bool hasStar=rest.endsWith("*");
-  rest.replace("*",""); rest.trim();
+  
+  // Check for star BEFORE removing it - look for * anywhere in the string
+  bool hasStar = (rest.length() > 0 && rest.indexOf('*') >= 0);
+  
+  // Remove star and get the numeric value
+  rest.replace("*",""); 
+  rest.trim();
   int val=constrain(rest.toInt(),0,PIXELS_PER_STRIP);
 
   bool known=false;
   for(int i=0;i<7;i++){
     if(label.equalsIgnoreCase(labels[i])){
+      bool wasRainbow = rainbow[i];
       targetLeds[i] = val * LEDS_PER_PIXEL;
-      rainbow[i]=hasStar;
+      rainbow[i] = hasStar;  // Explicitly set based on star presence - MUST be false if no star
+      
+      // Debug output
+      Serial.printf("Floor %s: hasStar=%d, rainbow[%d]=%d, wasRainbow=%d\n", 
+                    labels[i], hasStar, i, rainbow[i], wasRainbow);
+      
+      // If rainbow mode changed, initialize wave position appropriately
+      if (rainbow[i] != wasRainbow) {
+        if (rainbow[i]) {
+          // Turning on rainbow: wave starts at 0
+          rainbowWavePos[i] = 0.0f;
+        } else {
+          // Turning off rainbow: wave starts at 0 (same direction as turning on)
+          // LEDs after the wave are still rainbow, LEDs before the wave turn off
+          rainbowWavePos[i] = 0.0f;
+        }
+        Serial.printf("Wave pos reset: rainbowWavePos[%d]=%f (rainbow=%d, currentLeds=%f)\n", 
+                      i, rainbowWavePos[i], rainbow[i], currentLeds[i]);
+      }
+      
       String v=String(labels[i])+"_val";
       String r=String(labels[i])+"_r";
       saveState(v.c_str(),r.c_str(),val,hasStar);
@@ -181,7 +231,7 @@ void handleInput(String msg){
 // --- DRAW FUNCTIONS ---
 // =====================
 void drawFloor(CRGB* leds,int start,int end,float ledsLit,
-               CRGB titleColor,CRGB staticColor,bool rainbow,bool reverse) {
+               CRGB titleColor,CRGB staticColor,float wavePos,bool targetRainbow,bool reverse) {
   fill_solid(&leds[start], end - start + 1, CRGB::Black);
 
   // Title zone
@@ -203,6 +253,7 @@ void drawFloor(CRGB* leds,int start,int end,float ledsLit,
   }
 
   int barStart = start + TITLE_LEDS + TITLE_GAP;
+  float totalLit = ledsLit;
 
   // Draw by segments
   for (int seg = 0; seg < PIXELS_PER_STRIP; seg++) {
@@ -215,15 +266,49 @@ void drawFloor(CRGB* leds,int start,int end,float ledsLit,
     for (int j=0;j<ledsToLight;j++) {
       int idx = reverse ? (end - (segStart - start + j)) : (segStart + j);
       if (idx < start || idx > end) continue;
-      if (rainbow)
+      
+      // Calculate LED position in the lit area (0-based index, LED-by-LED)
+      int ledPosInLit = (seg * LEDS_PER_PIXEL) + j;
+      
+      // Determine if this LED should be rainbow based on wave position and direction
+      // For reversed strips, we need to account for the physical LED order being inverted
+      bool useRainbow = false;
+      
+      // Safety check: if targetRainbow is false and wave is complete (near 0), no rainbow
+      if (!targetRainbow && wavePos <= 0.01f) {
+        useRainbow = false;
+      } else if (targetRainbow && wavePos >= totalLit - 0.01f) {
+        // Safety check: if targetRainbow is true and wave is complete (near totalLit), all rainbow
+        useRainbow = true;
+      } else if (targetRainbow) {
+        // Transitioning to rainbow: LED 6 to 1 (opposite direction from turning off)
+        // Wave moves from 0 to totalLit, high-position LEDs turn on first
+        if (reverse) {
+          useRainbow = ledPosInLit < wavePos;
+        } else {
+          useRainbow = ledPosInLit >= (totalLit - wavePos);
+        }
+      } else {
+        // Transitioning away from rainbow: LED 1 to 6 (same direction)
+        // Wave moves from 0 to totalLit, LEDs before wave are NOT rainbow (turn off first)
+        // LEDs after wave are still rainbow
+        if (reverse) {
+          useRainbow = ledPosInLit < (totalLit - wavePos);
+        } else {
+          useRainbow = ledPosInLit >= wavePos;
+        }
+      }
+      
+      if (useRainbow) {
         leds[idx] = CHSV((255 - hueOffset + (seg * 40) + (j * 2)) & 255, 255, beatBrightness);
-      else
+      } else {
         leds[idx] = staticColor;
+      }
     }
   }
 }
 
-void drawStrip(CRGB* leds,float ledsLit,CRGB titleColor,CRGB staticColor,bool rainbow) {
+void drawStrip(CRGB* leds,float ledsLit,CRGB titleColor,CRGB staticColor,float wavePos,bool targetRainbow) {
   fill_solid(leds,NUM_LEDS_SINGLE,CRGB::Black);
   for (int i=0;i<TITLE_LEDS && i<NUM_LEDS_SINGLE;i++)
     leds[i]=titleColor;
@@ -243,6 +328,7 @@ void drawStrip(CRGB* leds,float ledsLit,CRGB titleColor,CRGB staticColor,bool ra
   }
 
   int barStart = TITLE_LEDS + TITLE_GAP;
+  float totalLit = ledsLit;
 
   for (int seg = 0; seg < PIXELS_PER_STRIP; seg++) {
     float segProgress = ledsLit - (seg * LEDS_PER_PIXEL);
@@ -254,10 +340,35 @@ void drawStrip(CRGB* leds,float ledsLit,CRGB titleColor,CRGB staticColor,bool ra
     for (int j=0;j<ledsToLight;j++) {
       int idx = segStart + j;
       if (idx >= NUM_LEDS_SINGLE) break;
-      if (rainbow)
+      
+      // Calculate LED position in the lit area (0-based index, LED-by-LED)
+      int ledPosInLit = (seg * LEDS_PER_PIXEL) + j;
+      
+      // Determine if this LED should be rainbow based on wave position and direction
+      bool useRainbow = false;
+      
+      // Safety check: if targetRainbow is false and wave is complete (near 0), no rainbow
+      if (!targetRainbow && wavePos <= 0.01f) {
+        useRainbow = false;
+      } else if (targetRainbow && wavePos >= totalLit - 0.01f) {
+        // Safety check: if targetRainbow is true and wave is complete (near totalLit), all rainbow
+        useRainbow = true;
+      } else if (targetRainbow) {
+        // Transitioning to rainbow: LED 6 to 1 (opposite direction from turning off)
+        // Wave moves from 0 to totalLit, high-position LEDs turn on first
+        useRainbow = ledPosInLit >= (totalLit - wavePos);
+      } else {
+        // Transitioning away from rainbow: LED 1 to 6 (same direction)
+        // Wave moves from 0 to totalLit, LEDs before wave are NOT rainbow (turn off first)
+        // LEDs after wave are still rainbow
+        useRainbow = ledPosInLit >= wavePos;
+      }
+      
+      if (useRainbow) {
         leds[idx] = CHSV((255 - hueOffset + (seg * 40) + (j * 2)) & 255, 255, beatBrightness);
-      else
+      } else {
         leds[idx] = staticColor;
+      }
     }
   }
 }
