@@ -5,7 +5,6 @@
 
 // Function declarations
 void initUART();
-void handleInput(String msg);
 void uartTask(void* parameter);
 
 #endif // UART_H

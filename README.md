@@ -116,51 +116,198 @@ BOARDNAME EVERY BODY SAME
 BOARDNAME EVERY BODY DIF
 ```
 
-## Perimeter Commands
+## GET Commands
 
-Control the perimeter RGBW strip (250 LEDs on pin 5, WS2814).
+Query the current state of BoardName and Perimeter settings.
 
 ### Syntax
 ```
-PERIMETER <pattern> [color parameters]
+GET BOARDNAME
+GET PERIMETER
+GET PER          # Same as GET PERIMETER
 ```
+
+### GET BOARDNAME
+Returns the current BoardName pattern setting.
+
+**Response Format:**
+```
+BOARDNAME <pattern>
+```
+
+**Example Responses:**
+```
+BOARDNAME PER WORD
+BOARDNAME SOLID
+BOARDNAME SOLID WHITE
+BOARDNAME BLINK
+BOARDNAME EVERY BODY SAME
+BOARDNAME EVERY BODY DIF
+BOARDNAME OFF
+```
+
+**Example:**
+```
+GET BOARDNAME
+# Response: BOARDNAME PER WORD
+```
+
+### GET PERIMETER (or GET PER)
+Returns the current Perimeter pattern and color settings.
+
+**Response Format:**
+- For `OFF` or `RAINBOW`: `PER <pattern>`
+- For `SOLID`: `PER SOLID <COLOR_NAME>`
+- For `ALT`: `PER ALT <COLOR1> <COLOR2> [CHASE [delay_ms]]`
+
+**Example Responses:**
+```
+PER OFF
+PER SOLID RED
+PER ALT YELLOW BLUE
+PER ALT RED BLUE CHASE
+PER ALT RED BLUE CHASE 250
+PER RAINBOW
+```
+
+**Example:**
+```
+GET PERIMETER
+# Response: PER PER ALT YELLOW BLUE
+
+GET PER
+# Response: PER SOLID PURPLE
+```
+
+## Perimeter Commands
+
+Control the perimeter RGB strip (232 LEDs on pin 5: 44 top, 44 bottom, 72 each side).
+
+### Syntax
+```
+PER <pattern> [color parameters]
+```
+
+**Note**: `PERIMETER` is still supported for backwards compatibility, but `PER` is the preferred command.
+
+### Available Colors
+
+The following color names can be used with `SOLID` and `PER ALT` patterns (case-insensitive):
+
+- `RED` - Red
+- `GREEN` - Green
+- `BLUE` - Blue
+- `YELLOW` - Yellow
+- `PURPLE` - Purple
+- `CYAN` - Cyan
+- `MAGENTA` - Magenta
+- `ORANGE` - Orange
+- `PINK` - Pink
+- `WHITE` - White (uses white LED channel)
+- `BLACK` - Black (off)
+- `LIME` - Bright yellow-green
+- `TEAL` - Teal
+- `NAVY` - Navy blue
+- `MAROON` - Maroon
+- `OLIVE` - Olive
+- `GOLD` - Gold
+- `SILVER` - Silver
+- `CORAL` - Coral
+- `TURQUOISE` - Turquoise
 
 ### Patterns
 
 #### `OFF`
 Turns off the perimeter strip.
 
-#### `SOLID <R> <G> <B> [W]`
-Sets all LEDs to a solid color.
-- `R`, `G`, `B`: Red, Green, Blue values (0-255)
-- `W`: White value (0-255, optional, defaults to 0)
+**Example:**
+```
+PER OFF
+PERIMETER OFF    # Also works (backwards compatibility)
+```
+
+#### `SOLID <COLOR_NAME>`
+Sets all LEDs to a solid color using a color name.
 
 **Example:**
 ```
-PERIMETER SOLID 255 0 0 0      # Red
-PERIMETER SOLID 0 0 255 128    # Blue with white
-PERIMETER SOLID 0 0 0 255      # White only
+PER SOLID RED
+PER SOLID BLUE
+PER SOLID PURPLE
+PER SOLID WHITE
+PER SOLID GOLD
 ```
 
-#### `ALTERNATING <R1> <G1> <B1> <W1> <R2> <G2> <B2> [W2]`
+#### `ALT <COLOR1> <COLOR2> [CHASE [delay_ms]]`
 Alternates between two colors (every other LED).
-- First set: `R1`, `G1`, `B1`, `W1` - First color
-- Second set: `R2`, `G2`, `B2`, `W2` - Second color (W2 optional, defaults to 0)
 - Pattern: LED 0 = Color 1, LED 1 = Color 2, LED 2 = Color 1, etc.
+- Optional `CHASE [delay_ms]`: Makes the alternating pattern chase around the perimeter
+  - If `delay_ms` is not specified, defaults to 500ms
+  - `delay_ms` is the time in milliseconds between each step of the chase
 
 **Example:**
 ```
-PERIMETER ALTERNATING 255 255 0 0 0 0 255 0    # Yellow and Blue
-PERIMETER ALTERNATING 0 0 0 255 255 255 0 0   # White and Yellow
+PER ALT YELLOW BLUE
+PER ALT PURPLE CYAN
+PER ALT WHITE RED
+PER ALT GOLD SILVER
+PER ALT RED BLUE CHASE        # Chase with default 500ms delay
+PER ALT RED BLUE CHASE 250    # Chase with 250ms delay (faster)
+PER ALT YELLOW GREEN CHASE 1000  # Chase with 1000ms delay (slower)
 ```
 
-#### `CHASING_RAINBOW`
-Cycles a rainbow pattern that chases around the perimeter strip.
+#### `RAINBOW`
+Cycles a rainbow pattern across the perimeter strip at the same speed as the floor rainbow animations.
 
 **Example:**
 ```
-PERIMETER CHASING_RAINBOW
+PER RAINBOW
+PERIMETER RAINBOW    # Also works (backwards compatibility)
+PER CHASING_RAINBOW  # Also works (backwards compatibility, same as RAINBOW)
 ```
+
+## Brightness Commands
+
+### `SET BRITE <TARGET> <VALUE>`
+Sets the brightness for BoardName or Perimeter separately.
+
+**Parameters:**
+- `<TARGET>`: `PER`/`PERIMETER` for perimeter, or `BD`/`BOARDNAME` for BoardName
+- `<VALUE>`: Brightness value from 0-255 (0 = off, 255 = full brightness)
+
+**Examples:**
+```
+SET BRITE PER 200
+SET BRITE PERIMETER 150
+SET BRITE BD 255
+SET BRITE BOARDNAME 100
+```
+
+**Note:** BoardName defaults to 255 (100% brightness), Perimeter defaults to 150.
+
+### `SET TESTMODE <TRUE/FALSE>`
+Enables or disables test mode. When enabled, all floors cycle through values 0-6, increasing every 5 seconds.
+
+**Parameters:**
+- `<TRUE/FALSE>`: `TRUE`/`ON`/`1` to enable, `FALSE`/`OFF`/`0` to disable
+
+**Response:**
+- `TESTMODE ACCEPTED` when the command is successfully processed
+
+**Example:**
+```
+SET TESTMODE TRUE
+# Response: TESTMODE ACCEPTED
+# All floors will cycle: 0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 0 (every 5 seconds)
+
+SET TESTMODE FALSE
+# Response: TESTMODE ACCEPTED
+# Test mode disabled, floors return to normal control
+```
+
+**Note:** In test mode, all floors are set to the same value (0-6) and rainbow mode is disabled.
+
+**Note:** In test mode, all floors are set to the same value simultaneously, and rainbow mode is disabled.
 
 ## Notes
 
@@ -177,5 +324,5 @@ PERIMETER CHASING_RAINBOW
 - **Strip 1** (Pin 3): FLOOR17, FLOOR16, FLOOR15 (3 floors)
 - **Strip 2** (Pin 2): FLOOR12, FLOOR11, TEAROOM, POOL (4 floors)
 - **BoardName** (Pin 4): 84 LEDs (2 rows of 42)
-- **Perimeter** (Pin 5): 250 LEDs (WS2814 RGBW)
+- **Perimeter** (Pin 5): 232 LEDs (44 top, 44 bottom, 72 each side)
 

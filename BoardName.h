@@ -3,18 +3,21 @@
 
 #include <FastLED.h>
 
-// BoardName: 2 rows of 42 LEDs each (84 total)
-// Layout: 42 LEDs right to left, then up, then 42 more right to left
-#define BOARDNAME_LEDS 84
+// BoardName: 2 rows with different lengths (71 total)
+// Layout: Row 1 (bottom): FIRST 30 LEDs (0-29) right to left, then Row 0 (top): NEXT 41 LEDs (30-70) left to right
+#define BOARDNAME_LEDS 71
 #define BOARDNAME_ROWS 2
-#define BOARDNAME_COLS 42
+#define BOARDNAME_COLS 42  // Max columns (for array size), but Row 0 has 41, Row 1 has 30
+#define BOARDNAME_ROW0_LEDS 41
+#define BOARDNAME_ROW1_LEDS 30
 
 // BoardName row boundaries - start and end columns for each row
-// These account for dead space on the physical strip
+// Row 0 (top): 41 LEDs, columns 0-40
+// Row 1 (bottom): 30 LEDs, columns 0-29
 #define BOARDNAME_ROW0_START 0   // Start column for row 0 (inclusive)
-#define BOARDNAME_ROW0_END 41    // End column for row 0 (inclusive)
+#define BOARDNAME_ROW0_END 40    // End column for row 0 (inclusive)
 #define BOARDNAME_ROW1_START 0   // Start column for row 1 (inclusive)
-#define BOARDNAME_ROW1_END 41    // End column for row 1 (inclusive)
+#define BOARDNAME_ROW1_END 29    // End column for row 1 (inclusive)
 
 // BoardName patterns
 enum BoardNamePattern : uint8_t {
@@ -46,17 +49,17 @@ extern uint32_t boardNameLastColorChange;
 extern uint32_t boardNameBlinkStartTime;
 extern int boardNameBlinkWordIndex;
 extern WordDef boardNameWords[];
+extern uint8_t boardNameBrightness;
 
 #define EVERY_WORD_INDEX 2  // "Every" is word index 2
 #define BODY_WORD_INDEX 3   // "Body" is word index 3
 #define COLOR_FADE_INTERVAL 300000  // 5 minutes in milliseconds
-#define BLINK_INTERVAL 5000         // 5 seconds between words
+#define BLINK_INTERVAL 1000         // 1 second between words
 
 // Function declarations
 void initBoardName();
 void drawBoardName();
 void handleBoardNameCommand(String rest);
-int mapBoardNameToPhysical(int row, int col);
 void generateDistinctColors(CRGB* colors);
 CRGB generateRandomColor();
 void fadeColorsToTarget(CRGB* current, CRGB* target, float step);

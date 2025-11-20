@@ -3,30 +3,55 @@
 // BoardName LED array
 CRGB leds_boardname[BOARDNAME_LEDS];
 
+// Logical to physical LED mapping for BoardName
+// Each array is [row][column] where row is 0 or 1
+// Row 1 (bottom): FIRST LEDs 0-29, 30 LEDs, right to left (col 0 = LED 29, col 29 = LED 0)
+// Row 0 (top): NEXT LEDs 30-70, 41 LEDs, left to right (col 0 = LED 30, col 40 = LED 70)
+// Invalid columns return -1
+const int boardname_led_map[2][BOARDNAME_COLS] = {
+  {  // Row 0 (top): 41 LEDs, left to right (LEDs 30-70)
+     30, 31, 32, 33, 34, 35, 36, 37,
+     38, 39, 40, 41, 42, 43, 44, 45,
+     46, 47, 48, 49, 50, 51, 52, 53,
+     54, 55, 56, 57, 58, 59, 60, 61,
+     62, 63, 64, 65, 66, 67, 68, 69,
+     70, -1,
+  },
+  {  // Row 1 (bottom): 30 LEDs, right to left (LEDs 29-0)
+     29, 28, 27, 26, 25, 24, 23, 22,
+     21, 20, 19, 18, 17, 16, 15, 14,
+     13, 12, 11, 10,  9,  8,  7,  6,
+      5,  4,  3,  2,  1,  0, -1, -1,
+     -1, -1, -1, -1, -1, -1, -1, -1,
+     -1, -1,
+  }
+};
+
 // BoardName state
-BoardNamePattern boardNamePattern = BN_OFF;
+BoardNamePattern boardNamePattern = BN_PER_WORD;  // Default to PER WORD pattern
 CRGB boardNameColors[5];  // Colors for each word: "Where", "is", "Every", "Body", "At?!"
 CRGB boardNameTargetColors[5];  // Target colors for fading
 uint8_t boardNameHueOffset = 0;
 uint32_t boardNameLastColorChange = 0;  // Last time colors changed (for 5-minute fade)
 uint32_t boardNameBlinkStartTime = 0;   // When blink sequence started
 int boardNameBlinkWordIndex = -1;       // Current word index being lit (-1 = none)
+uint8_t boardNameBrightness = 255;      // 100% brightness
 
 // BoardName word definitions: "Where is Every\nBody At?!"
 WordDef boardNameWords[NUM_WORDS] = {
-  {0, 9, 0},   // "Where" - approximate, adjust based on actual font
-  {10, 11, 0}, // "is"
-  {12, 17, 0}, // "Every"
-  {0, 4, 1},   // "Body" (second row)
-  {5, 8, 1}    // "At?!" (second row)
+  {0, 18, 0},   // "Where" - approximate, adjust based on actual font
+  {19, 25, 0}, // "is"
+  {26, 40, 0}, // "Every"
+  {0, 14, 1},   // "Body" (second row)
+  {15, 29, 1}    // "At?!" (second row)
 };
 
 void initBoardName() {
-  // Initialize BoardName colors
-  for(int i = 0; i < NUM_WORDS; i++) {
-    boardNameColors[i] = CRGB::White;
-    boardNameTargetColors[i] = CRGB::White;
-  }
+  // Initialize BoardName with PER WORD pattern
+  boardNamePattern = BN_PER_WORD;
+  generateDistinctColors(boardNameColors);
+  generateDistinctColors(boardNameTargetColors);
+  boardNameLastColorChange = millis();
 }
 
 // Generate 5 distinct colors
@@ -80,37 +105,7 @@ void fadeColorsToTarget(CRGB* current, CRGB* target, float step) {
   }
 }
 
-// Map BoardName logical position (row, col) to physical LED index
-// Layout: Row 0: LEDs right to left within row0Start-row0End range
-//         Row 1: LEDs right to left within row1Start-row1End range
-// col is the logical column (0-41), mapped to the physical range defined by row boundaries
-int mapBoardNameToPhysical(int row, int col) {
-  if (row == 0) {
-    // Row 0: reversed (right to left)
-    // Map logical col to physical range (BOARDNAME_ROW0_START to BOARDNAME_ROW0_END, but reversed)
-    int row0Width = BOARDNAME_ROW0_END - BOARDNAME_ROW0_START + 1;
-    if (col < 0 || col >= row0Width) return -1;  // Out of bounds
-    
-    // Logical col 0 = rightmost of usable area (BOARDNAME_ROW0_END)
-    // Logical col (width-1) = leftmost of usable area (BOARDNAME_ROW0_START)
-    int physicalCol = BOARDNAME_ROW0_END - col;
-    
-    // Now map physicalCol to LED index (reversed: col 0 = LED 41, col 41 = LED 0)
-    return (BOARDNAME_COLS - 1) - physicalCol;
-  } else {
-    // Row 1: reversed (right to left), starting at LED 42
-    // Map logical col to physical range (BOARDNAME_ROW1_START to BOARDNAME_ROW1_END, but reversed)
-    int row1Width = BOARDNAME_ROW1_END - BOARDNAME_ROW1_START + 1;
-    if (col < 0 || col >= row1Width) return -1;  // Out of bounds
-    
-    // Logical col 0 = rightmost of usable area (BOARDNAME_ROW1_END)
-    // Logical col (width-1) = leftmost of usable area (BOARDNAME_ROW1_START)
-    int physicalCol = BOARDNAME_ROW1_END - col;
-    
-    // Now map physicalCol to LED index (reversed, starting at LED 42)
-    return BOARDNAME_COLS + ((BOARDNAME_COLS - 1) - physicalCol);
-  }
-}
+// BoardName LED mapping is now done via boardname_led_map array (same as floors)
 
 void drawBoardName() {
   // Clear all LEDs
@@ -145,7 +140,7 @@ void drawBoardName() {
         WordDef& word = boardNameWords[wordIdx];
         CRGB color = boardNameColors[wordIdx];
         for (int col = word.startCol; col <= word.endCol && col < BOARDNAME_COLS; col++) {
-          int ledIdx = mapBoardNameToPhysical(word.row, col);
+          int ledIdx = boardname_led_map[word.row][col];
           if (ledIdx >= 0 && ledIdx < BOARDNAME_LEDS) {
             leds_boardname[ledIdx] = color;
           }
@@ -160,7 +155,7 @@ void drawBoardName() {
       for (int wordIdx = 0; wordIdx < NUM_WORDS; wordIdx++) {
         WordDef& word = boardNameWords[wordIdx];
         for (int col = word.startCol; col <= word.endCol && col < BOARDNAME_COLS; col++) {
-          int ledIdx = mapBoardNameToPhysical(word.row, col);
+          int ledIdx = boardname_led_map[word.row][col];
           if (ledIdx >= 0 && ledIdx < BOARDNAME_LEDS) {
             leds_boardname[ledIdx] = color;
           }
@@ -174,7 +169,7 @@ void drawBoardName() {
       for (int wordIdx = 0; wordIdx < NUM_WORDS; wordIdx++) {
         WordDef& word = boardNameWords[wordIdx];
         for (int col = word.startCol; col <= word.endCol && col < BOARDNAME_COLS; col++) {
-          int ledIdx = mapBoardNameToPhysical(word.row, col);
+          int ledIdx = boardname_led_map[word.row][col];
           if (ledIdx >= 0 && ledIdx < BOARDNAME_LEDS) {
             leds_boardname[ledIdx] = CRGB::White;
           }
@@ -189,7 +184,8 @@ void drawBoardName() {
       int currentWord = (elapsed / BLINK_INTERVAL) - 1;  // -1 = none, 0-4 = words
       if (currentWord < 0) currentWord = -1;
       if (currentWord >= NUM_WORDS) {
-        // Restart sequence
+        // Restart sequence with a new random color
+        boardNameColors[0] = generateRandomColor();
         boardNameBlinkStartTime = now;
         currentWord = -1;
       }
@@ -198,7 +194,7 @@ void drawBoardName() {
       for (int wordIdx = 0; wordIdx <= currentWord && wordIdx < NUM_WORDS; wordIdx++) {
         WordDef& word = boardNameWords[wordIdx];
         for (int col = word.startCol; col <= word.endCol && col < BOARDNAME_COLS; col++) {
-          int ledIdx = mapBoardNameToPhysical(word.row, col);
+          int ledIdx = boardname_led_map[word.row][col];
           if (ledIdx >= 0 && ledIdx < BOARDNAME_LEDS) {
             leds_boardname[ledIdx] = color;
           }
@@ -229,7 +225,7 @@ void drawBoardName() {
         }
         
         for (int col = word.startCol; col <= word.endCol && col < BOARDNAME_COLS; col++) {
-          int ledIdx = mapBoardNameToPhysical(word.row, col);
+          int ledIdx = boardname_led_map[word.row][col];
           if (ledIdx >= 0 && ledIdx < BOARDNAME_LEDS) {
             leds_boardname[ledIdx] = color;
           }
@@ -240,6 +236,15 @@ void drawBoardName() {
     
     default:
       break;
+  }
+  
+  // Apply brightness scaling
+  if (boardNameBrightness < 255) {
+    for (int i = 0; i < BOARDNAME_LEDS; i++) {
+      leds_boardname[i].r = (leds_boardname[i].r * boardNameBrightness) / 255;
+      leds_boardname[i].g = (leds_boardname[i].g * boardNameBrightness) / 255;
+      leds_boardname[i].b = (leds_boardname[i].b * boardNameBrightness) / 255;
+    }
   }
 }
 
